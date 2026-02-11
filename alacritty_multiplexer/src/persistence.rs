@@ -94,19 +94,33 @@ mod tests {
     use crate::session::{Session, SessionId};
     use std::env;
 
+    use std::sync::{Mutex, atomic::{AtomicU32, Ordering}};
+
+    /// Guard env var mutations so parallel test threads don't race.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
+
     fn with_temp_dir<F>(f: F)
     where
         F: FnOnce(),
     {
-        let dir = env::temp_dir().join(format!("alacritty_mux_test_{}", std::process::id()));
+        let _guard = ENV_LOCK.lock().unwrap();
+        let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dir = env::temp_dir().join(format!(
+            "alacritty_mux_test_{}_{id}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).unwrap();
         let prev = env::var("XDG_DATA_HOME").ok();
-        // SAFETY: tests run single-threaded (--test-threads=1) so no data race.
+        // SAFETY: guarded by ENV_LOCK so no concurrent env mutation.
         unsafe { env::set_var("XDG_DATA_HOME", &dir) };
         f();
         // SAFETY: same as above.
         unsafe {
-            env::set_var("XDG_DATA_HOME", prev.as_deref().unwrap_or(""));
+            match &prev {
+                Some(v) => env::set_var("XDG_DATA_HOME", v),
+                None => env::remove_var("XDG_DATA_HOME"),
+            }
         }
         let _ = fs::remove_dir_all(&dir);
     }
