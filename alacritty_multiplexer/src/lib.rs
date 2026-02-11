@@ -11,6 +11,7 @@ pub mod error;
 pub mod layout;
 pub mod pane;
 pub mod persistence;
+pub mod protocol;
 pub mod rect;
 pub mod resize;
 pub mod session;
