@@ -291,6 +291,30 @@ macOS:     { family = _"Menlo"_,     style = _"Regular"_ }
 
 	Default: _true_
 
+*[[font.fallbacks]]*
+
+	List of fallback fonts to try when a glyph is not found in the primary
+	font. Each entry has the same format as *font.normal*. Fallback fonts are
+	tried in the order they are defined. This is useful for symbol fonts like
+	Nerd Fonts or emoji fonts.
+
+	*family* = _"<string>"_
+
+		The font family name for this fallback entry.
+
+	*style* = _"<string>"_
+
+		The font style for this fallback entry.
+
+	Default: _[]_
+
+	Example:
+		*[[font.fallbacks]]*++
+family = _"Symbols Nerd Font"_++
+++
+*[[font.fallbacks]]*++
+family = _"Noto Color Emoji"_
+
 # COLORS
 
 This section documents the *[colors]* table of the configuration file.

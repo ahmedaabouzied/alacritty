@@ -42,6 +42,9 @@ pub struct Font {
 
     /// Whether to use the built-in font for box drawing characters.
     pub builtin_box_drawing: bool,
+
+    /// Fallback fonts tried in order when a glyph is missing.
+    fallbacks: Vec<FontDescription>,
 }
 
 impl Font {
@@ -74,6 +77,11 @@ impl Font {
     pub fn bold_italic(&self) -> FontDescription {
         self.bold_italic.desc(&self.normal)
     }
+
+    /// Get fallback font descriptions.
+    pub fn fallbacks(&self) -> &[FontDescription] {
+        &self.fallbacks
+    }
 }
 
 impl Default for Font {
@@ -88,6 +96,7 @@ impl Default for Font {
             normal: Default::default(),
             bold: Default::default(),
             size: Default::default(),
+            fallbacks: Default::default(),
         }
     }
 }

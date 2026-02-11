@@ -5,7 +5,7 @@ use crossfont::{
     Error as RasterizerError, FontDesc, FontKey, GlyphKey, Metrics, Rasterize, RasterizedGlyph,
     Rasterizer, Size, Slant, Style, Weight,
 };
-use log::{error, info};
+use log::{error, info, warn};
 use unicode_width::UnicodeWidthChar;
 
 use crate::config::font::{Font, FontDescription};
@@ -76,11 +76,15 @@ pub struct GlyphCache {
 
     /// Whether to use the built-in font for box drawing characters.
     builtin_box_drawing: bool,
+
+    /// User-configured fallback font keys, tried in order for missing glyphs.
+    fallback_keys: Vec<FontKey>,
 }
 
 impl GlyphCache {
     pub fn new(mut rasterizer: Rasterizer, font: &Font) -> Result<GlyphCache, crossfont::Error> {
         let (regular, bold, italic, bold_italic) = Self::compute_font_keys(font, &mut rasterizer)?;
+        let fallback_keys = Self::load_fallback_fonts(font, &mut rasterizer);
 
         let metrics = GlyphCache::load_font_metrics(&mut rasterizer, font, regular)?;
         Ok(Self {
@@ -95,6 +99,7 @@ impl GlyphCache {
             glyph_offset: font.glyph_offset,
             metrics,
             builtin_box_drawing: font.builtin_box_drawing,
+            fallback_keys,
         })
     }
 
@@ -179,6 +184,20 @@ impl GlyphCache {
         }
     }
 
+    /// Load user-configured fallback fonts, skipping any that fail to load.
+    fn load_fallback_fonts(font: &Font, rasterizer: &mut Rasterizer) -> Vec<FontKey> {
+        let size = font.size();
+        let mut keys = Vec::new();
+        for desc in font.fallbacks() {
+            let font_desc = Self::make_desc(desc, Slant::Normal, Weight::Normal);
+            match rasterizer.load_font(&font_desc, size) {
+                Ok(key) => keys.push(key),
+                Err(err) => warn!("Failed to load fallback font \"{}\": {}", desc.family, err),
+            }
+        }
+        keys
+    }
+
     fn make_desc(desc: &FontDescription, slant: Slant, weight: Weight) -> FontDesc {
         let style = if let Some(ref spec) = desc.style {
             Style::Specific(spec.to_owned())
@@ -223,19 +242,36 @@ impl GlyphCache {
 
         let glyph = match rasterized {
             Ok(rasterized) => self.load_glyph(loader, rasterized),
-            // Load fallback glyph.
+            // Try user-configured fallback fonts before showing missing glyph.
             Err(RasterizerError::MissingGlyph(rasterized)) if show_missing => {
-                // Use `\0` as "missing" glyph to cache it only once.
-                let missing_key = GlyphKey { character: '\0', ..glyph_key };
-                if let Some(glyph) = self.cache.get(&missing_key) {
-                    *glyph
-                } else {
-                    // If no missing glyph was loaded yet, insert it as `\0`.
-                    let glyph = self.load_glyph(loader, rasterized);
-                    self.cache.insert(missing_key, glyph);
-
-                    glyph
+                // Try each fallback font in order.
+                let mut fallback_result = None;
+                for i in 0..self.fallback_keys.len() {
+                    let fallback_key = self.fallback_keys[i];
+                    let fallback_glyph_key = GlyphKey { font_key: fallback_key, ..glyph_key };
+                    match self.rasterizer.get_glyph(fallback_glyph_key) {
+                        Ok(rasterized) => {
+                            fallback_result = Some(self.load_glyph(loader, rasterized));
+                            break;
+                        },
+                        // Fallback font doesn't have this glyph either, try next.
+                        Err(RasterizerError::MissingGlyph(_)) => continue,
+                        // Other error, try next fallback.
+                        Err(_) => continue,
+                    }
                 }
+
+                fallback_result.unwrap_or_else(|| {
+                    // No fallback had the glyph; use the original missing glyph placeholder.
+                    let missing_key = GlyphKey { character: '\0', ..glyph_key };
+                    if let Some(glyph) = self.cache.get(&missing_key) {
+                        *glyph
+                    } else {
+                        let glyph = self.load_glyph(loader, rasterized);
+                        self.cache.insert(missing_key, glyph);
+                        glyph
+                    }
+                })
             },
             Err(_) => self.load_glyph(loader, Default::default()),
         };
@@ -289,6 +325,9 @@ impl GlyphCache {
         let (regular, bold, italic, bold_italic) =
             Self::compute_font_keys(font, &mut self.rasterizer)?;
 
+        // Recompute fallback font keys.
+        let fallback_keys = Self::load_fallback_fonts(font, &mut self.rasterizer);
+
         let metrics = GlyphCache::load_font_metrics(&mut self.rasterizer, font, regular)?;
 
         info!("Font size changed to {:?} px", font.size().as_px());
@@ -300,6 +339,7 @@ impl GlyphCache {
         self.bold_italic_key = bold_italic;
         self.metrics = metrics;
         self.builtin_box_drawing = font.builtin_box_drawing;
+        self.fallback_keys = fallback_keys;
 
         Ok(())
     }
