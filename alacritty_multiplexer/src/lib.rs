@@ -15,6 +15,7 @@ pub mod persistence;
 pub mod protocol;
 pub mod rect;
 pub mod resize;
+pub mod server;
 pub mod session;
 pub mod split;
 pub mod statusbar;
