@@ -1,8 +1,10 @@
 //! Execute multiplexer commands against session and terminal state.
 
+use std::collections::HashMap;
+
 use log::info;
 
-use alacritty_multiplexer::command::MuxCommand;
+use alacritty_multiplexer::command::{LeaderKeyConfig, MuxCommand};
 use alacritty_multiplexer::layout::{Direction, PaneId};
 use alacritty_multiplexer::resize::resize_pane;
 
@@ -192,5 +194,75 @@ fn rename_window(mux: &mut MuxState, name: String) -> bool {
         true
     } else {
         false
+    }
+}
+
+/// Rebuild the leader key config and bindings map from the current UiConfig.
+///
+/// Called when config is hot-reloaded to pick up changes to
+/// `[multiplexer.keybindings]`, `leader_keys`, etc.
+pub fn rebuild_config(
+    config: &UiConfig,
+) -> (LeaderKeyConfig, HashMap<String, MuxCommand>) {
+    let mux_config = &config.multiplexer;
+
+    let leader_config = LeaderKeyConfig {
+        keys: mux_config.leader_keys.clone(),
+        timeout_ms: mux_config.leader_timeout_ms,
+    };
+
+    let bindings = mux_config.keybindings.to_bindings_map();
+
+    (leader_config, bindings)
+}
+
+/// Propagate a window resize to all pane PTYs.
+///
+/// Recalculates pane rects from the session layout, then resizes each
+/// pane's PTY+Term to its new cell dimensions.
+pub fn propagate_resize(
+    mux: &mut MuxState,
+    size_info: &SizeInfo,
+) {
+    let cell_width = size_info.cell_width();
+    let cell_height = size_info.cell_height();
+
+    let usable_cols = (size_info.width() / cell_width) as u16;
+    let total_rows = (size_info.height() / cell_height) as u16;
+    let usable_rows = total_rows.saturating_sub(1);
+
+    let total_area = alacritty_multiplexer::rect::Rect::new(0, 0, usable_cols, usable_rows);
+
+    let win = match mux.session.active_win() {
+        Some(w) => w,
+        None => return,
+    };
+
+    let rects = win.pane_rects(total_area);
+
+    for (pane_id, rect) in &rects {
+        if let Some(pane_state) = mux.panes.get(pane_id) {
+            let new_cols = rect.width as usize;
+            let new_rows = rect.height as usize;
+            let pixel_width = rect.width as f32 * cell_width;
+            let pixel_height = rect.height as f32 * cell_height;
+
+            // Resize the terminal grid.
+            let mut term = pane_state.terminal.lock();
+            let size = SizeInfo::new(pixel_width, pixel_height, cell_width, cell_height, 0.0, 0.0, false);
+            term.resize(size);
+            drop(term);
+
+            // Notify the PTY event loop of the new size.
+            let window_size = alacritty_terminal::tty::WindowSize {
+                num_lines: new_rows as u16,
+                num_cols: new_cols as u16,
+                cell_width: cell_width as u16,
+                cell_height: cell_height as u16,
+            };
+            let _ = pane_state.notifier.0.send(
+                alacritty_terminal::event_loop::Msg::Resize(window_size),
+            );
+        }
     }
 }
