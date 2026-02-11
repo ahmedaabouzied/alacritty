@@ -6,6 +6,7 @@
 //! in isolation.
 
 pub mod command;
+pub mod config;
 pub mod error;
 pub mod layout;
 pub mod pane;
