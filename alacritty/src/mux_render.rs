@@ -194,3 +194,44 @@ pub fn build_status_line(session: &Session, width_cols: usize) -> String {
     let content = statusbar::build_status(session);
     statusbar::render_status_line(&content, width_cols)
 }
+
+/// RGBA color for pane borders.
+#[derive(Debug, Clone, Copy)]
+pub struct BorderColor {
+    /// Red component (0.0–1.0).
+    pub r: f32,
+    /// Green component (0.0–1.0).
+    pub g: f32,
+    /// Blue component (0.0–1.0).
+    pub b: f32,
+    /// Alpha component (0.0–1.0).
+    pub a: f32,
+}
+
+/// Default inactive border: dim gray.
+pub const BORDER_INACTIVE: BorderColor = BorderColor { r: 0.3, g: 0.3, b: 0.3, a: 1.0 };
+
+/// Default active border: bright green.
+pub const BORDER_ACTIVE: BorderColor = BorderColor { r: 0.2, g: 0.8, b: 0.2, a: 1.0 };
+
+/// Get the color for a border based on whether it's adjacent to the active pane.
+pub fn border_color(border: &PaneBorder) -> BorderColor {
+    if border.is_active { BORDER_ACTIVE } else { BORDER_INACTIVE }
+}
+
+/// Compute the status bar pixel region at the bottom of the window.
+pub fn status_bar_region(size_info: &SizeInfo) -> PaneRegion {
+    let cell_width = size_info.cell_width();
+    let cell_height = size_info.cell_height();
+    let total_rows = (size_info.height() / cell_height) as u16;
+    let usable_cols = (size_info.width() / cell_width) as u16;
+
+    PaneRegion {
+        x: 0.0,
+        y: (total_rows.saturating_sub(1)) as f32 * cell_height,
+        width: usable_cols as f32 * cell_width,
+        height: cell_height,
+        cols: usable_cols as usize,
+        rows: 1,
+    }
+}

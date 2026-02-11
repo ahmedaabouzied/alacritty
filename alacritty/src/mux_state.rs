@@ -68,4 +68,31 @@ impl MuxState {
         let pane_id = self.session.active_pane_id()?;
         self.panes.get(&pane_id).map(|p| &p.notifier)
     }
+
+    /// Get a pane's terminal by ID.
+    pub fn terminal_for(&self, id: PaneId) -> Option<&Arc<FairMutex<Term<EventProxy>>>> {
+        self.panes.get(&id).map(|p| &p.terminal)
+    }
+
+    /// Get a pane's notifier by ID.
+    pub fn notifier_for(&self, id: PaneId) -> Option<&Notifier> {
+        self.panes.get(&id).map(|p| &p.notifier)
+    }
+
+    /// Get all active pane IDs.
+    pub fn active_pane_ids(&self) -> Vec<PaneId> {
+        self.panes.keys().copied().collect()
+    }
+
+    /// Get all master file descriptors for PTY polling (Unix only).
+    #[cfg(not(windows))]
+    pub fn pty_fds(&self) -> Vec<(PaneId, RawFd)> {
+        self.panes.iter().map(|(&id, ps)| (id, ps.master_fd)).collect()
+    }
+
+    /// Check if any pane has the given file descriptor (Unix only).
+    #[cfg(not(windows))]
+    pub fn pane_for_fd(&self, fd: RawFd) -> Option<PaneId> {
+        self.panes.iter().find(|(_, ps)| ps.master_fd == fd).map(|(&id, _)| id)
+    }
 }
