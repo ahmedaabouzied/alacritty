@@ -14,11 +14,7 @@ const MAX_RATIO: f32 = 0.9;
 /// `target`. Positive values grow the first child; negative values shrink it.
 /// The ratio is clamped to `[MIN_RATIO, MAX_RATIO]`.
 pub fn resize_pane(tree: &mut LayoutNode, target: PaneId, delta: f32) -> MuxResult<()> {
-    if resize_inner(tree, target, delta) {
-        Ok(())
-    } else {
-        Err(MuxError::PaneNotFound(target.0))
-    }
+    if resize_inner(tree, target, delta) { Ok(()) } else { Err(MuxError::PaneNotFound(target.0)) }
 }
 
 fn resize_inner(node: &mut LayoutNode, target: PaneId, delta: f32) -> bool {

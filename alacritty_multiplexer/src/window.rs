@@ -57,10 +57,7 @@ impl MuxWindow {
         let new_id = PaneId(self.next_pane_id);
         self.next_pane_id += 1;
 
-        let layout = std::mem::replace(
-            &mut self.layout,
-            LayoutNode::Leaf { pane_id: PaneId(0) },
-        );
+        let layout = std::mem::replace(&mut self.layout, LayoutNode::Leaf { pane_id: PaneId(0) });
         let (new_layout, new_pane_id) = split::split_pane(layout, pane_id, dir, new_id)?;
         self.layout = new_layout;
         self.panes.insert(new_pane_id, Pane::new(new_pane_id));
@@ -70,8 +67,7 @@ impl MuxWindow {
 
     /// Close the given pane. Returns `true` if the window is now empty.
     pub fn close_pane(&mut self, pane_id: PaneId) -> MuxResult<bool> {
-        let layout =
-            std::mem::replace(&mut self.layout, LayoutNode::Leaf { pane_id: PaneId(0) });
+        let layout = std::mem::replace(&mut self.layout, LayoutNode::Leaf { pane_id: PaneId(0) });
         let remaining = split::close_pane(layout, pane_id)?;
 
         self.panes.remove(&pane_id);

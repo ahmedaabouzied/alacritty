@@ -24,8 +24,7 @@ fn arb_layout(max_splits: u32) -> impl Strategy<Value = (LayoutNode, Vec<PaneId>
                 let new_id = PaneId(next_id);
                 next_id += 1;
                 // Clone so we keep the tree on failure (split takes ownership).
-                let (new_tree, pid) =
-                    split_pane(tree.clone(), target, *dir, new_id).unwrap();
+                let (new_tree, pid) = split_pane(tree.clone(), target, *dir, new_id).unwrap();
                 tree = new_tree;
                 ids.push(pid);
             }
@@ -159,10 +158,7 @@ fn check_ratios(node: &LayoutNode) {
     match node {
         LayoutNode::Leaf { .. } => {},
         LayoutNode::Split { ratio, first, second, .. } => {
-            assert!(
-                *ratio >= 0.1 && *ratio <= 0.9,
-                "ratio out of bounds: {ratio}"
-            );
+            assert!(*ratio >= 0.1 && *ratio <= 0.9, "ratio out of bounds: {ratio}");
             check_ratios(first);
             check_ratios(second);
         },

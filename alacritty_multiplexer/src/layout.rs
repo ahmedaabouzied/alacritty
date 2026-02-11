@@ -45,9 +45,7 @@ impl LayoutNode {
     pub fn find_pane(&self, id: PaneId) -> bool {
         match self {
             LayoutNode::Leaf { pane_id } => *pane_id == id,
-            LayoutNode::Split { first, second, .. } => {
-                first.find_pane(id) || second.find_pane(id)
-            },
+            LayoutNode::Split { first, second, .. } => first.find_pane(id) || second.find_pane(id),
         }
     }
 
@@ -67,9 +65,7 @@ impl LayoutNode {
     pub fn pane_count(&self) -> usize {
         match self {
             LayoutNode::Leaf { .. } => 1,
-            LayoutNode::Split { first, second, .. } => {
-                first.pane_count() + second.pane_count()
-            },
+            LayoutNode::Split { first, second, .. } => first.pane_count() + second.pane_count(),
         }
     }
 
@@ -106,12 +102,7 @@ mod tests {
     }
 
     fn split(dir: Direction, a: LayoutNode, b: LayoutNode) -> LayoutNode {
-        LayoutNode::Split {
-            direction: dir,
-            ratio: 0.5,
-            first: Box::new(a),
-            second: Box::new(b),
-        }
+        LayoutNode::Split { direction: dir, ratio: 0.5, first: Box::new(a), second: Box::new(b) }
     }
 
     #[test]
@@ -131,21 +122,15 @@ mod tests {
 
     #[test]
     fn pane_ids_order() {
-        let tree = split(
-            Direction::Vertical,
-            leaf(1),
-            split(Direction::Horizontal, leaf(2), leaf(3)),
-        );
+        let tree =
+            split(Direction::Vertical, leaf(1), split(Direction::Horizontal, leaf(2), leaf(3)));
         assert_eq!(tree.pane_ids(), vec![PaneId(1), PaneId(2), PaneId(3)]);
     }
 
     #[test]
     fn pane_count_nested() {
-        let tree = split(
-            Direction::Horizontal,
-            split(Direction::Vertical, leaf(1), leaf(2)),
-            leaf(3),
-        );
+        let tree =
+            split(Direction::Horizontal, split(Direction::Vertical, leaf(1), leaf(2)), leaf(3));
         assert_eq!(tree.pane_count(), 3);
     }
 
@@ -183,8 +168,7 @@ mod tests {
         assert_eq!(rects.len(), 4);
 
         // Sum of all pane areas should equal total area.
-        let total: u32 =
-            rects.values().map(|r| r.width as u32 * r.height as u32).sum();
+        let total: u32 = rects.values().map(|r| r.width as u32 * r.height as u32).sum();
         assert_eq!(total, area.width as u32 * area.height as u32);
     }
 }

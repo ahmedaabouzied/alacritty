@@ -43,14 +43,12 @@ fn split_inner(
         LayoutNode::Leaf { .. } => SplitResult::NotFound(node),
         LayoutNode::Split { direction: d, ratio, first, second } => {
             match split_inner(*first, target, direction, new_id) {
-                SplitResult::Replaced(new_first) => {
-                    SplitResult::Replaced(LayoutNode::Split {
-                        direction: d,
-                        ratio,
-                        first: Box::new(new_first),
-                        second,
-                    })
-                },
+                SplitResult::Replaced(new_first) => SplitResult::Replaced(LayoutNode::Split {
+                    direction: d,
+                    ratio,
+                    first: Box::new(new_first),
+                    second,
+                }),
                 SplitResult::NotFound(orig_first) => {
                     match split_inner(*second, target, direction, new_id) {
                         SplitResult::Replaced(new_second) => {
@@ -93,15 +91,11 @@ enum CloseResult {
 
 fn close_inner(node: LayoutNode, target: PaneId) -> CloseResult {
     match node {
-        LayoutNode::Leaf { pane_id } if pane_id == target => {
-            CloseResult::Removed(None)
-        },
+        LayoutNode::Leaf { pane_id } if pane_id == target => CloseResult::Removed(None),
         LayoutNode::Leaf { .. } => CloseResult::NotFound(node),
         LayoutNode::Split { direction, ratio, first, second } => {
             match close_inner(*first, target) {
-                CloseResult::Removed(None) => {
-                    CloseResult::Removed(Some(*second))
-                },
+                CloseResult::Removed(None) => CloseResult::Removed(Some(*second)),
                 CloseResult::Removed(Some(new_first)) => {
                     CloseResult::Removed(Some(LayoutNode::Split {
                         direction,
@@ -110,28 +104,24 @@ fn close_inner(node: LayoutNode, target: PaneId) -> CloseResult {
                         second,
                     }))
                 },
-                CloseResult::NotFound(orig_first) => {
-                    match close_inner(*second, target) {
-                        CloseResult::Removed(None) => {
-                            CloseResult::Removed(Some(orig_first))
-                        },
-                        CloseResult::Removed(Some(new_second)) => {
-                            CloseResult::Removed(Some(LayoutNode::Split {
-                                direction,
-                                ratio,
-                                first: Box::new(orig_first),
-                                second: Box::new(new_second),
-                            }))
-                        },
-                        CloseResult::NotFound(orig_second) => {
-                            CloseResult::NotFound(LayoutNode::Split {
-                                direction,
-                                ratio,
-                                first: Box::new(orig_first),
-                                second: Box::new(orig_second),
-                            })
-                        },
-                    }
+                CloseResult::NotFound(orig_first) => match close_inner(*second, target) {
+                    CloseResult::Removed(None) => CloseResult::Removed(Some(orig_first)),
+                    CloseResult::Removed(Some(new_second)) => {
+                        CloseResult::Removed(Some(LayoutNode::Split {
+                            direction,
+                            ratio,
+                            first: Box::new(orig_first),
+                            second: Box::new(new_second),
+                        }))
+                    },
+                    CloseResult::NotFound(orig_second) => {
+                        CloseResult::NotFound(LayoutNode::Split {
+                            direction,
+                            ratio,
+                            first: Box::new(orig_first),
+                            second: Box::new(orig_second),
+                        })
+                    },
                 },
             }
         },
@@ -149,8 +139,7 @@ mod tests {
     #[test]
     fn split_increases_count() {
         let tree = leaf(1);
-        let (tree, new_id) =
-            split_pane(tree, PaneId(1), Direction::Vertical, PaneId(2)).unwrap();
+        let (tree, new_id) = split_pane(tree, PaneId(1), Direction::Vertical, PaneId(2)).unwrap();
         assert_eq!(tree.pane_count(), 2);
         assert_eq!(new_id, PaneId(2));
     }
@@ -192,8 +181,7 @@ mod tests {
     #[test]
     fn split_then_close_roundtrip() {
         let tree = leaf(1);
-        let (tree, _) =
-            split_pane(tree, PaneId(1), Direction::Horizontal, PaneId(2)).unwrap();
+        let (tree, _) = split_pane(tree, PaneId(1), Direction::Horizontal, PaneId(2)).unwrap();
         assert_eq!(tree.pane_count(), 2);
 
         let tree = close_pane(tree, PaneId(2)).unwrap().unwrap();

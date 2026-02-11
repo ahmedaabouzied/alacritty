@@ -210,7 +210,10 @@ fn verify_no_overlap(rects: &std::collections::HashMap<PaneId, Rect>) {
             assert!(
                 no_h || no_v,
                 "Panes {:?} and {:?} overlap: {:?} vs {:?}",
-                ids[i], ids[j], r1, r2
+                ids[i],
+                ids[j],
+                r1,
+                r2
             );
         }
     }

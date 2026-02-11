@@ -52,9 +52,6 @@ pub struct LeaderKeyConfig {
 
 impl Default for LeaderKeyConfig {
     fn default() -> Self {
-        Self {
-            keys: vec!["Control-Space".into(), "Control-b".into()],
-            timeout_ms: 1000,
-        }
+        Self { keys: vec!["Control-Space".into(), "Control-b".into()], timeout_ms: 1000 }
     }
 }

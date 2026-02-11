@@ -8,8 +8,7 @@ use crate::session::Session;
 
 /// Serialize a session to JSON.
 pub fn serialize_session(session: &Session) -> MuxResult<String> {
-    serde_json::to_string_pretty(session)
-        .map_err(|e| MuxError::PersistenceError(e.to_string()))
+    serde_json::to_string_pretty(session).map_err(|e| MuxError::PersistenceError(e.to_string()))
 }
 
 /// Deserialize a session from JSON.
@@ -34,29 +33,41 @@ fn dirs_or_default() -> PathBuf {
 fn dirs_data() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share"))
-        })
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
         .map(|d| d.join("alacritty"))
+}
+
+/// Path to a session's JSON file.
+fn session_path(name: &str) -> PathBuf {
+    session_dir().join(format!("{name}.json"))
 }
 
 /// Save a session to disk.
 pub fn save_session(session: &Session) -> MuxResult<()> {
     let dir = session_dir();
     fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.json", session.name));
     let json = serialize_session(session)?;
-    fs::write(path, json)?;
+    fs::write(session_path(&session.name), json)?;
     Ok(())
 }
 
 /// Load a session from disk by name.
 pub fn load_session(name: &str) -> MuxResult<Session> {
-    let path = session_dir().join(format!("{name}.json"));
+    let path = session_path(name);
     let json = fs::read_to_string(&path).map_err(|e| {
         MuxError::PersistenceError(format!("failed to read {}: {e}", path.display()))
     })?;
     deserialize_session(&json)
+}
+
+/// Extract the session name from a directory entry, if it's a JSON file.
+fn session_name_from_entry(entry: &fs::DirEntry) -> Option<String> {
+    let path = entry.path();
+    let is_json = path.extension().is_some_and(|ext| ext == "json");
+    if !is_json {
+        return None;
+    }
+    Some(path.file_stem()?.to_string_lossy().into_owned())
 }
 
 /// List all saved session names.
@@ -65,23 +76,15 @@ pub fn list_sessions() -> MuxResult<Vec<String>> {
     if !dir.exists() {
         return Ok(Vec::new());
     }
-    let mut names = Vec::new();
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "json") {
-            if let Some(stem) = path.file_stem() {
-                names.push(stem.to_string_lossy().into_owned());
-            }
-        }
-    }
+    let mut names: Vec<String> =
+        fs::read_dir(dir)?.filter_map(|e| session_name_from_entry(&e.ok()?)).collect();
     names.sort();
     Ok(names)
 }
 
 /// Delete a saved session by name.
 pub fn delete_session(name: &str) -> MuxResult<()> {
-    let path = session_dir().join(format!("{name}.json"));
+    let path = session_path(name);
     if path.exists() {
         fs::remove_file(path)?;
     }
@@ -94,7 +97,10 @@ mod tests {
     use crate::session::{Session, SessionId};
     use std::env;
 
-    use std::sync::{Mutex, atomic::{AtomicU32, Ordering}};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicU32, Ordering},
+    };
 
     /// Guard env var mutations so parallel test threads don't race.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -106,10 +112,7 @@ mod tests {
     {
         let _guard = ENV_LOCK.lock().unwrap();
         let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir = env::temp_dir().join(format!(
-            "alacritty_mux_test_{}_{id}",
-            std::process::id()
-        ));
+        let dir = env::temp_dir().join(format!("alacritty_mux_test_{}_{id}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let prev = env::var("XDG_DATA_HOME").ok();
         // SAFETY: guarded by ENV_LOCK so no concurrent env mutation.

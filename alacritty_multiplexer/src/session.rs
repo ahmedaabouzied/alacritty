@@ -29,13 +29,7 @@ impl Session {
     /// Create a new session with one default window.
     pub fn new(id: SessionId, name: impl Into<String>) -> Self {
         let win = MuxWindow::new(WindowId(0), "0");
-        Self {
-            id,
-            name: name.into(),
-            windows: vec![win],
-            active_window: 0,
-            next_window_id: 1,
-        }
+        Self { id, name: name.into(), windows: vec![win], active_window: 0, next_window_id: 1 }
     }
 
     /// Add a new window and return its id.
@@ -107,9 +101,7 @@ impl Session {
 
     /// Split the active pane in the active window.
     pub fn split_active(&mut self, dir: Direction) -> MuxResult<PaneId> {
-        let win = self.active_win_mut().ok_or(MuxError::SessionError(
-            "no active window".into(),
-        ))?;
+        let win = self.active_win_mut().ok_or(MuxError::SessionError("no active window".into()))?;
         let pane_id = win.active_pane;
         win.split(pane_id, dir)
     }

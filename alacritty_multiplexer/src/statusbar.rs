@@ -42,11 +42,7 @@ pub fn build_status(session: &Session) -> StatusBarContent {
         .map(|w| format!("pane {}/{}", pane_position(w), w.layout.pane_count()))
         .unwrap_or_default();
 
-    StatusBarContent {
-        session_name: session.name.clone(),
-        windows,
-        pane_info,
-    }
+    StatusBarContent { session_name: session.name.clone(), windows, pane_info }
 }
 
 fn pane_position(w: &crate::window::MuxWindow) -> usize {
@@ -54,26 +50,20 @@ fn pane_position(w: &crate::window::MuxWindow) -> usize {
     order.iter().position(|&id| id == w.active_pane).map(|p| p + 1).unwrap_or(1)
 }
 
+/// Format a window entry for the status bar.
+fn format_window_entry(w: &WindowEntry) -> String {
+    let marker = if w.is_active { "*" } else { "" };
+    format!(" {}:{}{}", w.index, w.name, marker)
+}
+
 /// Render the status bar content as a single line string.
 pub fn render_status_line(content: &StatusBarContent, width: usize) -> String {
     let left = format!("[{}]", content.session_name);
-
-    let center: String = content
-        .windows
-        .iter()
-        .map(|w| {
-            if w.is_active {
-                format!(" {}:{}*", w.index, w.name)
-            } else {
-                format!(" {}:{}", w.index, w.name)
-            }
-        })
-        .collect();
-
+    let center: String = content.windows.iter().map(format_window_entry).collect();
     let right = &content.pane_info;
 
     let used = left.len() + center.len() + right.len();
-    let padding = if width > used { width - used } else { 0 };
+    let padding = width.saturating_sub(used);
 
     format!("{left}{center}{:>pad$}{right}", "", pad = padding)
 }
