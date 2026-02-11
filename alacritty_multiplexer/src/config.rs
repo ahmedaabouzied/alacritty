@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// Top-level multiplexer configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MultiplexerConfig {
     /// Whether the multiplexer is enabled.
@@ -38,7 +38,7 @@ impl Default for MultiplexerConfig {
 }
 
 /// Keybindings for leader mode (key pressed after leader).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KeybindingsConfig {
     /// Key for horizontal split.
@@ -122,7 +122,7 @@ impl KeybindingsConfig {
 }
 
 /// Status bar appearance configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StatusBarConfig {
     /// Format string for left section.
@@ -145,6 +145,104 @@ impl Default for StatusBarConfig {
             format_right: "{time}".into(),
             fg: "#a0a0a0".into(),
             bg: "#1a1a1a".into(),
+        }
+    }
+}
+
+// --- SerdeReplace implementations for hot-reload (behind config-integration) ---
+
+#[cfg(feature = "config-integration")]
+mod serde_replace_impls {
+    use std::error::Error;
+
+    use alacritty_config::SerdeReplace;
+    use toml::Value;
+
+    use super::*;
+
+    impl SerdeReplace for MultiplexerConfig {
+        fn replace(&mut self, value: Value) -> Result<(), Box<dyn Error>> {
+            match value.as_table() {
+                Some(table) => {
+                    for (field, next_value) in table {
+                        let next_value = next_value.clone();
+                        match field.as_str() {
+                            "enabled" => self.enabled.replace(next_value)?,
+                            "status_bar" => self.status_bar.replace(next_value)?,
+                            "leader_keys" => self.leader_keys.replace(next_value)?,
+                            "leader_timeout_ms" => self.leader_timeout_ms.replace(next_value)?,
+                            "keybindings" => self.keybindings.replace(next_value)?,
+                            "status_bar_config" => self.status_bar_config.replace(next_value)?,
+                            _ => {
+                                return Err(
+                                    format!("Unknown multiplexer field: \"{field}\"").into()
+                                );
+                            },
+                        }
+                    }
+                },
+                None => *self = serde::Deserialize::deserialize(value)?,
+            }
+            Ok(())
+        }
+    }
+
+    impl SerdeReplace for KeybindingsConfig {
+        fn replace(&mut self, value: Value) -> Result<(), Box<dyn Error>> {
+            match value.as_table() {
+                Some(table) => {
+                    for (field, next_value) in table {
+                        let next_value = next_value.clone();
+                        match field.as_str() {
+                            "split_horizontal" => self.split_horizontal.replace(next_value)?,
+                            "split_horizontal_alt" => {
+                                self.split_horizontal_alt.replace(next_value)?
+                            },
+                            "split_vertical" => self.split_vertical.replace(next_value)?,
+                            "split_vertical_alt" => self.split_vertical_alt.replace(next_value)?,
+                            "close_pane" => self.close_pane.replace(next_value)?,
+                            "next_pane" => self.next_pane.replace(next_value)?,
+                            "prev_pane" => self.prev_pane.replace(next_value)?,
+                            "new_window" => self.new_window.replace(next_value)?,
+                            "next_window" => self.next_window.replace(next_value)?,
+                            "prev_window" => self.prev_window.replace(next_value)?,
+                            "detach" => self.detach.replace(next_value)?,
+                            "rename_window" => self.rename_window.replace(next_value)?,
+                            "toggle_zoom" => self.toggle_zoom.replace(next_value)?,
+                            "scrollback_mode" => self.scrollback_mode.replace(next_value)?,
+                            _ => {
+                                return Err(format!("Unknown keybinding field: \"{field}\"").into());
+                            },
+                        }
+                    }
+                },
+                None => *self = serde::Deserialize::deserialize(value)?,
+            }
+            Ok(())
+        }
+    }
+
+    impl SerdeReplace for StatusBarConfig {
+        fn replace(&mut self, value: Value) -> Result<(), Box<dyn Error>> {
+            match value.as_table() {
+                Some(table) => {
+                    for (field, next_value) in table {
+                        let next_value = next_value.clone();
+                        match field.as_str() {
+                            "format_left" => self.format_left.replace(next_value)?,
+                            "format_center" => self.format_center.replace(next_value)?,
+                            "format_right" => self.format_right.replace(next_value)?,
+                            "fg" => self.fg.replace(next_value)?,
+                            "bg" => self.bg.replace(next_value)?,
+                            _ => {
+                                return Err(format!("Unknown status_bar field: \"{field}\"").into());
+                            },
+                        }
+                    }
+                },
+                None => *self = serde::Deserialize::deserialize(value)?,
+            }
+            Ok(())
         }
     }
 }
@@ -181,5 +279,26 @@ mod tests {
         let restored: MultiplexerConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.leader_keys, cfg.leader_keys);
         assert_eq!(restored.leader_timeout_ms, cfg.leader_timeout_ms);
+    }
+
+    #[test]
+    fn config_partial_eq() {
+        let a = MultiplexerConfig::default();
+        let b = MultiplexerConfig::default();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn keybindings_partial_eq() {
+        let a = KeybindingsConfig::default();
+        let b = KeybindingsConfig::default();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn status_bar_config_partial_eq() {
+        let a = StatusBarConfig::default();
+        let b = StatusBarConfig::default();
+        assert_eq!(a, b);
     }
 }

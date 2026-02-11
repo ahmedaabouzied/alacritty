@@ -112,6 +112,10 @@ pub struct UiConfig {
     #[cfg(unix)]
     #[config(deprecated = "use general.ipc_socket instead")]
     pub ipc_socket: Option<bool>,
+
+    /// Built-in terminal multiplexer configuration.
+    #[cfg(feature = "multiplexer")]
+    pub multiplexer: alacritty_multiplexer::config::MultiplexerConfig,
 }
 
 impl UiConfig {

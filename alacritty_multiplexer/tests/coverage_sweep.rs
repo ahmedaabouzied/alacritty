@@ -5,11 +5,15 @@ use alacritty_multiplexer::config::{KeybindingsConfig, MultiplexerConfig, Status
 use alacritty_multiplexer::error::MuxError;
 use alacritty_multiplexer::layout::{Direction, LayoutNode, PaneId};
 use alacritty_multiplexer::pane::Pane;
-use alacritty_multiplexer::protocol::{ClientMessage, ServerMessage, decode_message, encode_message};
+use alacritty_multiplexer::protocol::{
+    ClientMessage, ServerMessage, decode_message, encode_message,
+};
 use alacritty_multiplexer::rect::Rect;
 use alacritty_multiplexer::resize::resize_pane;
 use alacritty_multiplexer::session::{Session, SessionId};
-use alacritty_multiplexer::statusbar::{StatusBarContent, WindowEntry, build_status, render_status_line};
+use alacritty_multiplexer::statusbar::{
+    StatusBarContent, WindowEntry, build_status, render_status_line,
+};
 use alacritty_multiplexer::window::{MuxWindow, WindowId};
 
 // ---- error.rs coverage ----
@@ -134,10 +138,7 @@ fn protocol_state_sync_roundtrip() {
 
 #[test]
 fn protocol_output_roundtrip() {
-    let msg = ServerMessage::Output {
-        pane_id: PaneId(3),
-        data: vec![65, 66, 67],
-    };
+    let msg = ServerMessage::Output { pane_id: PaneId(3), data: vec![65, 66, 67] };
     let encoded = encode_message(&msg).unwrap();
     let (decoded, _): (ServerMessage, _) = decode_message(&encoded).unwrap();
     match decoded {
@@ -377,10 +378,7 @@ fn check_all_ratios(node: &LayoutNode) {
     match node {
         LayoutNode::Leaf { .. } => {},
         LayoutNode::Split { ratio, first, second, .. } => {
-            assert!(
-                *ratio >= 0.1 && *ratio <= 0.9,
-                "ratio out of bounds: {ratio}"
-            );
+            assert!(*ratio >= 0.1 && *ratio <= 0.9, "ratio out of bounds: {ratio}");
             check_all_ratios(first);
             check_all_ratios(second);
         },

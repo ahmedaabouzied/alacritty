@@ -105,4 +105,4 @@ wayland = [
     "winit/wayland-csd-adwaita-crossfont",
 ]
 nightly = []
-multiplexer = ["dep:alacritty_multiplexer"]
+multiplexer = ["dep:alacritty_multiplexer", "alacritty_multiplexer/config-integration"]
