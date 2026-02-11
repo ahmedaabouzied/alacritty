@@ -18,7 +18,7 @@ alacritty_multiplexer/
     lib.rs           Module declarations
     cli.rs           CLI subcommand types (new, attach, list, kill)
     command.rs       MuxCommand enum (all multiplexer actions)
-    config.rs        Configuration schema ([multiplexer] section)
+    config.rs        Configuration schema + SerdeReplace for hot-reload
     error.rs         MuxError type with thiserror
     layout.rs        Binary split tree (LayoutNode) and PaneId
     pane.rs          Pane metadata (id + title)
@@ -26,7 +26,9 @@ alacritty_multiplexer/
     protocol.rs      Client-server protocol (ClientMessage / ServerMessage)
     rect.rs          Rectangle math for pane regions
     resize.rs        Resize operations with min/max ratio constraints
+    server.rs        Server-side session management and command dispatch
     session.rs       Session (owns windows, tracks active window)
+    socket.rs        Unix domain socket I/O helpers and message framing
     split.rs         Split/close operations on the layout tree
     statusbar.rs     Status bar content generation
     window.rs        MuxWindow (tab: owns layout + panes)
@@ -56,7 +58,7 @@ LayoutNode
 
 ### Integration with Alacritty (feature = "multiplexer")
 
-When the `multiplexer` feature is enabled, five modules are added to the
+When the `multiplexer` feature is enabled, seven modules are added to the
 `alacritty` binary crate:
 
 | Module | Role |
@@ -64,8 +66,10 @@ When the `multiplexer` feature is enabled, five modules are added to the
 | `mux_state.rs` | Holds `Session` + per-pane `Term<EventProxy>` + PTY handles |
 | `mux_spawn.rs` | Creates PTY + Term for new panes |
 | `mux_input.rs` | Leader key state machine intercepting keyboard events |
-| `mux_actions.rs` | Dispatches `MuxCommand` to session/terminal state |
-| `mux_render.rs` | Computes pane pixel regions, borders, and status bar |
+| `mux_actions.rs` | Dispatches `MuxCommand`, config hot-reload, resize propagation |
+| `mux_render.rs` | Computes pane pixel regions, borders, status bar, and colors |
+| `mux_server.rs` | Server-side socket listener for detach/reattach |
+| `mux_client.rs` | Client-side connection for attaching to sessions |
 
 ## Key Bindings
 
