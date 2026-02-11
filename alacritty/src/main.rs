@@ -42,6 +42,8 @@ mod macos;
 mod message_bar;
 mod migrate;
 #[cfg(feature = "multiplexer")]
+mod mux_input;
+#[cfg(feature = "multiplexer")]
 mod mux_spawn;
 #[cfg(feature = "multiplexer")]
 mod mux_state;
