@@ -5,6 +5,7 @@
 //! independent of the rendering and PTY layers so that it can be tested
 //! in isolation.
 
+pub mod cli;
 pub mod command;
 pub mod config;
 pub mod error;
