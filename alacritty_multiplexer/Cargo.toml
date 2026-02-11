@@ -19,6 +19,7 @@ toml = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = "1"
+tempfile = "3"
 
 [features]
 config-integration = ["dep:alacritty_config", "dep:toml"]
