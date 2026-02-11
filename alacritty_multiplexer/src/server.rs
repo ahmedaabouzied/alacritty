@@ -46,6 +46,14 @@ impl ServerState {
                 // crate (which owns the actual PTY handles), not here.
                 Vec::new()
             },
+            ClientMessage::RequestPaneContent(pane_id) => {
+                // Terminal content is owned by the binary crate (Term<T>).
+                // This message is forwarded to the MuxState layer which has
+                // access to the actual terminal grids. We return an empty
+                // PaneContent as a placeholder — the binary crate overrides
+                // this with real grid data.
+                vec![ServerMessage::PaneContent { pane_id, content: Vec::new(), cols: 0, rows: 0 }]
+            },
         }
     }
 
@@ -156,6 +164,7 @@ pub fn list_active_sessions() -> Vec<String> {
 mod tests {
     use super::*;
     use crate::command::MuxCommand;
+    use crate::layout::PaneId;
     use crate::protocol::ClientMessage;
     use crate::session::SessionId;
 
@@ -281,5 +290,21 @@ mod tests {
         let mut srv = server();
         let responses = srv.handle_message(ClientMessage::Resize { rows: 24, cols: 80 });
         assert!(responses.is_empty());
+    }
+
+    #[test]
+    fn request_pane_content_returns_placeholder() {
+        let mut srv = server();
+        let responses = srv.handle_message(ClientMessage::RequestPaneContent(PaneId(0)));
+        assert_eq!(responses.len(), 1);
+        match &responses[0] {
+            ServerMessage::PaneContent { pane_id, cols, rows, .. } => {
+                assert_eq!(*pane_id, PaneId(0));
+                // Placeholder values from multiplexer crate layer.
+                assert_eq!(*cols, 0);
+                assert_eq!(*rows, 0);
+            },
+            _ => panic!("expected PaneContent"),
+        }
     }
 }

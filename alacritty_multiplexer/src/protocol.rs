@@ -21,6 +21,8 @@ pub enum ClientMessage {
     Attach,
     /// Request to detach from the session.
     Detach,
+    /// Request full terminal content for a specific pane.
+    RequestPaneContent(PaneId),
 }
 
 /// Messages sent from the server to the client.
@@ -30,6 +32,17 @@ pub enum ServerMessage {
     Output { pane_id: PaneId, data: Vec<u8> },
     /// Full session state for synchronization on attach.
     StateSync(Session),
+    /// Terminal content snapshot for a pane on reattach.
+    PaneContent {
+        /// Which pane this content belongs to.
+        pane_id: PaneId,
+        /// Raw terminal output to replay (visible screen content).
+        content: Vec<u8>,
+        /// Number of columns in the pane.
+        cols: u16,
+        /// Number of rows in the pane.
+        rows: u16,
+    },
     /// A pane has exited.
     PaneExited(PaneId),
     /// Server is shutting down.
@@ -125,6 +138,38 @@ mod tests {
         let (decoded, _): (ClientMessage, _) = decode_message(&encoded).unwrap();
         match decoded {
             ClientMessage::Command(cmd) => assert_eq!(cmd, MuxCommand::SplitVertical),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn request_pane_content_roundtrip() {
+        let msg = ClientMessage::RequestPaneContent(PaneId(5));
+        let encoded = encode_message(&msg).unwrap();
+        let (decoded, _): (ClientMessage, _) = decode_message(&encoded).unwrap();
+        match decoded {
+            ClientMessage::RequestPaneContent(id) => assert_eq!(id, PaneId(5)),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn pane_content_roundtrip() {
+        let msg = ServerMessage::PaneContent {
+            pane_id: PaneId(2),
+            content: vec![72, 101, 108, 108, 111],
+            cols: 80,
+            rows: 24,
+        };
+        let encoded = encode_message(&msg).unwrap();
+        let (decoded, _): (ServerMessage, _) = decode_message(&encoded).unwrap();
+        match decoded {
+            ServerMessage::PaneContent { pane_id, content, cols, rows } => {
+                assert_eq!(pane_id, PaneId(2));
+                assert_eq!(content, vec![72, 101, 108, 108, 111]);
+                assert_eq!(cols, 80);
+                assert_eq!(rows, 24);
+            },
             _ => panic!("wrong variant"),
         }
     }
