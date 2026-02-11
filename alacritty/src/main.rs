@@ -46,6 +46,8 @@ mod mux_actions;
 #[cfg(feature = "multiplexer")]
 mod mux_input;
 #[cfg(feature = "multiplexer")]
+mod mux_render;
+#[cfg(feature = "multiplexer")]
 mod mux_spawn;
 #[cfg(feature = "multiplexer")]
 mod mux_state;
