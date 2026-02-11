@@ -52,14 +52,17 @@ pub fn compute_pane_regions(
     // If zoomed, the active pane fills the entire usable area.
     if win.zoomed {
         let mut result = HashMap::new();
-        result.insert(win.active_pane, PaneRegion {
-            x: 0.0,
-            y: 0.0,
-            width: usable_cols as f32 * cell_width,
-            height: usable_rows as f32 * cell_height,
-            cols: usable_cols as usize,
-            rows: usable_rows as usize,
-        });
+        result.insert(
+            win.active_pane,
+            PaneRegion {
+                x: 0.0,
+                y: 0.0,
+                width: usable_cols as f32 * cell_width,
+                height: usable_rows as f32 * cell_height,
+                cols: usable_cols as usize,
+                rows: usable_rows as usize,
+            },
+        );
         return result;
     }
 
@@ -97,10 +100,7 @@ pub struct PaneBorder {
 }
 
 /// Compute the border rectangles for pane separators.
-pub fn compute_borders(
-    session: &Session,
-    size_info: &SizeInfo,
-) -> Vec<PaneBorder> {
+pub fn compute_borders(session: &Session, size_info: &SizeInfo) -> Vec<PaneBorder> {
     let cell_width = size_info.cell_width();
     let cell_height = size_info.cell_height();
 
@@ -134,9 +134,7 @@ pub fn compute_borders(
                     height: overlap_len(r1.y, r1.height, r2.y, r2.height) as f32 * cell_height,
                     is_active,
                 });
-            } else if r2.x + r2.width == r1.x
-                && ranges_overlap(r1.y, r1.height, r2.y, r2.height)
-            {
+            } else if r2.x + r2.width == r1.x && ranges_overlap(r1.y, r1.height, r2.y, r2.height) {
                 let is_active = active_rect.map_or(false, |ar| ar == r1 || ar == r2);
                 borders.push(PaneBorder {
                     x: r1.x as f32 * cell_width - 1.0,
@@ -157,9 +155,7 @@ pub fn compute_borders(
                     height: 1.0,
                     is_active,
                 });
-            } else if r2.y + r2.height == r1.y
-                && ranges_overlap(r1.x, r1.width, r2.x, r2.width)
-            {
+            } else if r2.y + r2.height == r1.y && ranges_overlap(r1.x, r1.width, r2.x, r2.width) {
                 let is_active = active_rect.map_or(false, |ar| ar == r1 || ar == r2);
                 borders.push(PaneBorder {
                     x: r1.x.max(r2.x) as f32 * cell_width,

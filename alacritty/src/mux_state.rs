@@ -24,7 +24,9 @@ pub struct PaneState {
     /// Notifier to write to this pane's PTY.
     pub notifier: Notifier,
     /// I/O thread handle.
-    pub io_thread: Option<JoinHandle<(PtyEventLoop<tty::Pty, EventProxy>, alacritty_terminal::event_loop::State)>>,
+    pub io_thread: Option<
+        JoinHandle<(PtyEventLoop<tty::Pty, EventProxy>, alacritty_terminal::event_loop::State)>,
+    >,
     /// Master file descriptor for this PTY (Unix only).
     #[cfg(not(windows))]
     pub master_fd: RawFd,

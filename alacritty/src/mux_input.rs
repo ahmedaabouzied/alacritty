@@ -152,11 +152,7 @@ fn key_to_string(key: &KeyEvent, mods: ModifiersState) -> Option<String> {
         _ => return None,
     };
 
-    if mods.contains(ModifiersState::CONTROL) {
-        Some(format!("Ctrl-{base}"))
-    } else {
-        Some(base)
-    }
+    if mods.contains(ModifiersState::CONTROL) { Some(format!("Ctrl-{base}")) } else { Some(base) }
 }
 
 /// Build the default keybinding map (leader-mode second key → command).

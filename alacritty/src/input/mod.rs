@@ -17,7 +17,8 @@ use std::time::{Duration, Instant};
 use log::debug;
 use winit::dpi::PhysicalPosition;
 use winit::event::{
-    ElementState, Modifiers, MouseButton, MouseScrollDelta, Touch as TouchEvent, TouchPhase,
+    ElementState, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, Touch as TouchEvent,
+    TouchPhase,
 };
 #[cfg(target_os = "macos")]
 use winit::event_loop::ActiveEventLoop;
@@ -143,6 +144,13 @@ pub trait ActionContext<T: EventListener> {
         I: IntoIterator<Item = S> + Debug + Copy,
         S: AsRef<OsStr>,
     {
+    }
+    /// Process a key through the multiplexer input layer.
+    ///
+    /// Returns `true` if the key was consumed by the multiplexer.
+    #[cfg(feature = "multiplexer")]
+    fn mux_process_key(&mut self, _key: &KeyEvent, _mods: ModifiersState) -> bool {
+        false
     }
 }
 

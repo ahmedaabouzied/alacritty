@@ -68,10 +68,7 @@ impl MuxServer {
     /// Process messages from a client connection.
     ///
     /// Returns `false` if the client disconnected or sent a Detach.
-    pub fn process_client(
-        &mut self,
-        client: &mut ClientConnection,
-    ) -> bool {
+    pub fn process_client(&mut self, client: &mut ClientConnection) -> bool {
         let msg = match client.read_message() {
             Ok(Some(msg)) => msg,
             Ok(None) => return true,

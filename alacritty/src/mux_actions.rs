@@ -24,8 +24,12 @@ pub fn execute_command(
     event_proxy: &EventProxy,
 ) -> bool {
     match cmd {
-        MuxCommand::SplitHorizontal => split(mux, Direction::Horizontal, config, size_info, event_proxy),
-        MuxCommand::SplitVertical => split(mux, Direction::Vertical, config, size_info, event_proxy),
+        MuxCommand::SplitHorizontal => {
+            split(mux, Direction::Horizontal, config, size_info, event_proxy)
+        },
+        MuxCommand::SplitVertical => {
+            split(mux, Direction::Vertical, config, size_info, event_proxy)
+        },
         MuxCommand::ClosePane => close_pane(mux),
         MuxCommand::NextPane => nav_next_pane(mux),
         MuxCommand::PrevPane => nav_prev_pane(mux),
@@ -201,9 +205,7 @@ fn rename_window(mux: &mut MuxState, name: String) -> bool {
 ///
 /// Called when config is hot-reloaded to pick up changes to
 /// `[multiplexer.keybindings]`, `leader_keys`, etc.
-pub fn rebuild_config(
-    config: &UiConfig,
-) -> (LeaderKeyConfig, HashMap<String, MuxCommand>) {
+pub fn rebuild_config(config: &UiConfig) -> (LeaderKeyConfig, HashMap<String, MuxCommand>) {
     let mux_config = &config.multiplexer;
 
     let leader_config = LeaderKeyConfig {
@@ -220,10 +222,7 @@ pub fn rebuild_config(
 ///
 /// Recalculates pane rects from the session layout, then resizes each
 /// pane's PTY+Term to its new cell dimensions.
-pub fn propagate_resize(
-    mux: &mut MuxState,
-    size_info: &SizeInfo,
-) {
+pub fn propagate_resize(mux: &mut MuxState, size_info: &SizeInfo) {
     let cell_width = size_info.cell_width();
     let cell_height = size_info.cell_height();
 
@@ -249,20 +248,22 @@ pub fn propagate_resize(
 
             // Resize the terminal grid.
             let mut term = pane_state.terminal.lock();
-            let size = SizeInfo::new(pixel_width, pixel_height, cell_width, cell_height, 0.0, 0.0, false);
+            let size =
+                SizeInfo::new(pixel_width, pixel_height, cell_width, cell_height, 0.0, 0.0, false);
             term.resize(size);
             drop(term);
 
             // Notify the PTY event loop of the new size.
-            let window_size = alacritty_terminal::tty::WindowSize {
+            let window_size = alacritty_terminal::event::WindowSize {
                 num_lines: new_rows as u16,
                 num_cols: new_cols as u16,
                 cell_width: cell_width as u16,
                 cell_height: cell_height as u16,
             };
-            let _ = pane_state.notifier.0.send(
-                alacritty_terminal::event_loop::Msg::Resize(window_size),
-            );
+            let _ = pane_state
+                .notifier
+                .0
+                .send(alacritty_terminal::event_loop::Msg::Resize(window_size));
         }
     }
 }

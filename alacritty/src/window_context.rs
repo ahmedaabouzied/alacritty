@@ -41,6 +41,10 @@ use crate::event::{
 #[cfg(unix)]
 use crate::logging::LOG_TARGET_IPC_CONFIG;
 use crate::message_bar::MessageBuffer;
+#[cfg(feature = "multiplexer")]
+use crate::mux_input::MuxInputState;
+#[cfg(feature = "multiplexer")]
+use crate::mux_state::{MuxState, PaneState};
 use crate::scheduler::Scheduler;
 use crate::{input, renderer};
 
@@ -67,6 +71,14 @@ pub struct WindowContext {
     shell_pid: u32,
     window_config: ParsedOptions,
     config: Rc<UiConfig>,
+    #[cfg(feature = "multiplexer")]
+    mux_state: Option<MuxState>,
+    #[cfg(feature = "multiplexer")]
+    mux_input_state: MuxInputState,
+    #[cfg(feature = "multiplexer")]
+    mux_leader_config: alacritty_multiplexer::command::LeaderKeyConfig,
+    #[cfg(feature = "multiplexer")]
+    mux_bindings: std::collections::HashMap<String, alacritty_multiplexer::command::MuxCommand>,
 }
 
 impl WindowContext {
@@ -226,6 +238,34 @@ impl WindowContext {
         // Kick off the I/O thread.
         let _io_thread = event_loop.spawn();
 
+        // Initialize multiplexer state when the feature is enabled and configured.
+        #[cfg(feature = "multiplexer")]
+        let mux_state = if config.multiplexer.enabled {
+            use alacritty_multiplexer::session::{Session, SessionId};
+
+            let session = Session::new(SessionId(0), "default");
+            let mut mux = MuxState::new(session);
+            let pane_id = mux.session.active_pane_id().unwrap();
+            mux.register_pane(
+                pane_id,
+                PaneState {
+                    terminal: Arc::clone(&terminal),
+                    notifier: Notifier(loop_tx.clone()),
+                    io_thread: None,
+                    #[cfg(not(windows))]
+                    master_fd,
+                    #[cfg(not(windows))]
+                    shell_pid,
+                },
+            );
+            Some(mux)
+        } else {
+            None
+        };
+
+        #[cfg(feature = "multiplexer")]
+        let (mux_leader_config, mux_bindings) = crate::mux_actions::rebuild_config(&config);
+
         // Start cursor blinking, in case `Focused` isn't sent on startup.
         if config.cursor.style().blinking {
             event_proxy.send_event(TerminalEvent::CursorBlinkingChange.into());
@@ -254,6 +294,14 @@ impl WindowContext {
             mouse: Default::default(),
             touch: Default::default(),
             dirty: Default::default(),
+            #[cfg(feature = "multiplexer")]
+            mux_state,
+            #[cfg(feature = "multiplexer")]
+            mux_input_state: MuxInputState::default(),
+            #[cfg(feature = "multiplexer")]
+            mux_leader_config,
+            #[cfg(feature = "multiplexer")]
+            mux_bindings,
         })
     }
 
@@ -325,6 +373,14 @@ impl WindowContext {
         // Update hint keys.
         self.display.hint_state.update_alphabet(self.config.hints.alphabet());
 
+        // Reload multiplexer leader keys and bindings on config change.
+        #[cfg(feature = "multiplexer")]
+        {
+            let (leader_config, bindings) = crate::mux_actions::rebuild_config(&self.config);
+            self.mux_leader_config = leader_config;
+            self.mux_bindings = bindings;
+        }
+
         // Update cursor blinking.
         let event = Event::new(TerminalEvent::CursorBlinkingChange.into(), None);
         self.event_queue.push(event.into());
@@ -386,8 +442,16 @@ impl WindowContext {
             }
         }
 
-        // Redraw the window.
-        let terminal = self.terminal.lock();
+        // Redraw the window using the active pane's terminal when mux is active.
+        #[cfg(feature = "multiplexer")]
+        let active_terminal_arc =
+            self.mux_state.as_ref().and_then(|mux| mux.active_terminal()).cloned();
+        #[cfg(feature = "multiplexer")]
+        let terminal_arc = active_terminal_arc.as_ref().unwrap_or(&self.terminal);
+        #[cfg(not(feature = "multiplexer"))]
+        let terminal_arc = &self.terminal;
+
+        let terminal = terminal_arc.lock();
         self.display.draw(
             terminal,
             scheduler,
@@ -422,7 +486,16 @@ impl WindowContext {
             },
         }
 
-        let mut terminal = self.terminal.lock();
+        // Lock the active pane's terminal when mux is active.
+        #[cfg(feature = "multiplexer")]
+        let active_terminal_arc =
+            self.mux_state.as_ref().and_then(|mux| mux.active_terminal()).cloned();
+        #[cfg(feature = "multiplexer")]
+        let terminal_arc = active_terminal_arc.as_ref().unwrap_or(&self.terminal);
+        #[cfg(not(feature = "multiplexer"))]
+        let terminal_arc = &self.terminal;
+
+        let mut terminal = terminal_arc.lock();
 
         let old_is_searching = self.search_state.history_index.is_some();
 
@@ -451,6 +524,14 @@ impl WindowContext {
             event_loop,
             clipboard,
             scheduler,
+            #[cfg(feature = "multiplexer")]
+            mux_state: self.mux_state.as_mut(),
+            #[cfg(feature = "multiplexer")]
+            mux_input_state: &mut self.mux_input_state,
+            #[cfg(feature = "multiplexer")]
+            mux_leader_config: &self.mux_leader_config,
+            #[cfg(feature = "multiplexer")]
+            mux_bindings: &self.mux_bindings,
         };
         let mut processor = input::Processor::new(context);
 
@@ -469,6 +550,13 @@ impl WindowContext {
                 old_is_searching,
                 &self.config,
             );
+
+            // Propagate the resize to all multiplexer pane PTYs.
+            #[cfg(feature = "multiplexer")]
+            if let Some(ref mut mux) = self.mux_state {
+                crate::mux_actions::propagate_resize(mux, &self.display.size_info);
+            }
+
             self.dirty = true;
         }
 
@@ -496,6 +584,12 @@ impl WindowContext {
     /// ID of this terminal context.
     pub fn id(&self) -> WindowId {
         self.display.window.id()
+    }
+
+    /// Whether the multiplexer is active for this window.
+    #[cfg(feature = "multiplexer")]
+    pub fn mux_active(&self) -> bool {
+        self.mux_state.is_some()
     }
 
     /// Write the ref test results to the disk.
@@ -564,5 +658,13 @@ impl Drop for WindowContext {
     fn drop(&mut self) {
         // Shutdown the terminal's PTY.
         let _ = self.notifier.0.send(Msg::Shutdown);
+
+        // Shutdown all multiplexer pane PTYs.
+        #[cfg(feature = "multiplexer")]
+        if let Some(ref mut mux) = self.mux_state {
+            for pane_state in mux.panes.values() {
+                let _ = pane_state.notifier.0.send(Msg::Shutdown);
+            }
+        }
     }
 }

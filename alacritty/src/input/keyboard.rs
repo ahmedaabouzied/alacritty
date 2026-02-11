@@ -56,6 +56,12 @@ impl<T: EventListener, A: ActionContext<T>> Processor<T, A> {
         // Reset search delay when the user is still typing.
         self.reset_search_delay();
 
+        // Multiplexer leader key interception.
+        #[cfg(feature = "multiplexer")]
+        if self.ctx.mux_process_key(&key, mods) {
+            return;
+        }
+
         // Key bindings suppress the character input.
         if self.process_key_bindings(&key) {
             return;

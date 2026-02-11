@@ -412,6 +412,17 @@ impl ApplicationHandler<Event> for Processor {
                 }
             },
             (EventType::Terminal(TerminalEvent::Exit), Some(window_id)) => {
+                // When the multiplexer is active, a pane exit should not close
+                // the window — just trigger a redraw so the next frame picks up
+                // the new active pane.
+                #[cfg(feature = "multiplexer")]
+                if let Some(wc) = self.windows.get_mut(window_id) {
+                    if wc.mux_active() {
+                        wc.dirty = true;
+                        return;
+                    }
+                }
+
                 // Remove the closed terminal.
                 let window_context = match self.windows.entry(*window_id) {
                     // Don't exit when terminal exits if user asked to hold the window.
@@ -680,11 +691,27 @@ pub struct ActionContext<'a, N, T> {
     pub master_fd: RawFd,
     #[cfg(not(windows))]
     pub shell_pid: u32,
+    #[cfg(feature = "multiplexer")]
+    pub mux_state: Option<&'a mut crate::mux_state::MuxState>,
+    #[cfg(feature = "multiplexer")]
+    pub mux_input_state: &'a mut crate::mux_input::MuxInputState,
+    #[cfg(feature = "multiplexer")]
+    pub mux_leader_config: &'a alacritty_multiplexer::command::LeaderKeyConfig,
+    #[cfg(feature = "multiplexer")]
+    pub mux_bindings:
+        &'a std::collections::HashMap<String, alacritty_multiplexer::command::MuxCommand>,
 }
 
 impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionContext<'a, N, T> {
     #[inline]
     fn write_to_pty<B: Into<Cow<'static, [u8]>>>(&self, val: B) {
+        #[cfg(feature = "multiplexer")]
+        if let Some(ref mux) = self.mux_state {
+            if let Some(notifier) = mux.active_notifier() {
+                notifier.notify(val);
+                return;
+            }
+        }
         self.notifier.notify(val);
     }
 
@@ -1491,6 +1518,44 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
 
     fn scheduler_mut(&mut self) -> &mut Scheduler {
         self.scheduler
+    }
+
+    #[cfg(feature = "multiplexer")]
+    fn mux_process_key(
+        &mut self,
+        key: &winit::event::KeyEvent,
+        mods: winit::keyboard::ModifiersState,
+    ) -> bool {
+        if self.mux_state.is_none() {
+            return false;
+        }
+
+        let result = crate::mux_input::process_mux_key(
+            self.mux_input_state,
+            key,
+            mods,
+            self.mux_leader_config,
+            self.mux_bindings,
+        );
+
+        match result {
+            crate::mux_input::MuxKeyResult::Consumed(Some(cmd)) => {
+                let mux_state = self.mux_state.as_mut().unwrap();
+                let size_info = self.display.size_info;
+                let proxy = EventProxy::new(self.event_proxy.clone(), self.display.window.id());
+                crate::mux_actions::execute_command(
+                    mux_state,
+                    cmd,
+                    self.config,
+                    &size_info,
+                    &proxy,
+                );
+                *self.dirty = true;
+                true
+            },
+            crate::mux_input::MuxKeyResult::Consumed(None) => true,
+            crate::mux_input::MuxKeyResult::Forward => false,
+        }
     }
 }
 
