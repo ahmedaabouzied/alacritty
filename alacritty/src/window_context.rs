@@ -540,6 +540,9 @@ impl WindowContext {
         }
 
         // Process DisplayUpdate events.
+        #[cfg(feature = "multiplexer")]
+        let mut mux_needs_resize = false;
+
         if self.display.pending_update.dirty {
             Self::submit_display_update(
                 &mut terminal,
@@ -551,10 +554,9 @@ impl WindowContext {
                 &self.config,
             );
 
-            // Propagate the resize to all multiplexer pane PTYs.
             #[cfg(feature = "multiplexer")]
-            if let Some(ref mut mux) = self.mux_state {
-                crate::mux_actions::propagate_resize(mux, &self.display.size_info);
+            {
+                mux_needs_resize = true;
             }
 
             self.dirty = true;
@@ -578,6 +580,18 @@ impl WindowContext {
             && !matches!(event, WinitEvent::WindowEvent { event: WindowEvent::RedrawRequested, .. })
         {
             self.display.window.request_redraw();
+        }
+
+        // Drop the terminal lock before propagating resize to mux panes,
+        // since propagate_resize locks each pane's terminal (including the
+        // active one we currently hold).
+        drop(terminal);
+
+        #[cfg(feature = "multiplexer")]
+        if mux_needs_resize {
+            if let Some(ref mut mux) = self.mux_state {
+                crate::mux_actions::propagate_resize(mux, &self.display.size_info);
+            }
         }
     }
 
